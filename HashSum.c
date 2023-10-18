@@ -559,8 +559,8 @@ GetFileHash(BCRYPT_ALG_HANDLE hAlg, FILE *file, char **hash)
         *hash = (char *)calloc(2*cbHash+1, sizeof(*hash));
         for (i=0; i<cbHash; i++)
             {
-            (*hash)[2*i] = HexDigits[pbHash[i]&0xF];
-            (*hash)[2*i+1] = HexDigits[(pbHash[i]>>4)&0xF];
+            (*hash)[2 * i] = HexDigits[(pbHash[i] >> 4) & 0xF];
+            (*hash)[2 * i + 1] = HexDigits[pbHash[i] & 0xF];
             }
         }
 
