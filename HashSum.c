@@ -174,7 +174,7 @@ OpenHashAlgorithmProvider(const char *Algorithm)
                                    0);
         if (STATUS_SUCCESS != result)
             {
-            fprintf(stderr, "cryptographic algorithm provider '%s' does not provide hash functionality\n", Algorithm, GetErrorText(result));
+            fprintf(stderr, "cryptographic algorithm provider '%s' does not provide hash functionality:\n %s\n", Algorithm, GetErrorText(result));
             CloseHashAlgorithmProvider(hAlg);
             hAlg = INVALID_HANDLE_VALUE;
             }
@@ -355,8 +355,7 @@ CommandString, AlgorithmName, cbHash*8);
 "\n"
 "       -t, --text\n"
 "              read in text mode\n"
-"\n",
-GetProgramBaseName());
+"\n");
 if (Algorithms)
     fprintf(stderr,
 "       -a:HASH\n"
@@ -789,7 +788,7 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
         if (!(flags&FLG_STATUS))
             {
             if (bad_lines)
-                fprintf(stderr, "%s: WARNING: %d line% improperly formatted\n", GetProgramBaseName(), bad_lines, (bad_lines == 1) ? " is" : "s are");
+                fprintf(stderr, "%s: WARNING: %d line%s improperly formatted\n", GetProgramBaseName(), bad_lines, (bad_lines == 1) ? " is" : "s are");
             if (open_or_io_errors)
                 fprintf(stderr, "%s: WARNING: %d listed file%s could not be read\n", GetProgramBaseName(), open_or_io_errors, (open_or_io_errors == 1) ? "" : "s");
             if (mis_matches)
@@ -820,7 +819,7 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
                 }
             else
                 {
-                fprintf(stdout, "%s %s", hash, (flags&FLG_BINARY) ? "*" : " ", file);
+                fprintf(stdout, "%s %s", hash, (flags&FLG_BINARY) ? "*" : " ");
                 if (f == stdin)
                     fprintf(stdout, "-");
                 else
