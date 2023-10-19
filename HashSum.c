@@ -649,12 +649,12 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
     wchar_t AlgorithmNameW[32];
     char AlgorithmName[sizeof(AlgorithmNameW)];
     size_t i;
-    struct stat statb;
+    struct _stat64 statb;
     DWORD cbData;
 
     if (strcmp("-", file))
         {
-        if (stat(file, &statb))
+        if (_stat64(file, &statb))
             {
             fprintf(stderr, "Can't stat '%s': %s\n", file, strerror(errno));
             return EXIT_FAILURE;
