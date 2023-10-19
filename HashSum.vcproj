@@ -33,21 +33,20 @@
 				Name="VCXMLDataGeneratorTool"
 			/>
 			<Tool
-				Name="VCWebServiceProxyGeneratorTool"
-			/>
-			<Tool
 				Name="VCMIDLTool"
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				PreprocessorDefinitions="_CRT_NONSTDC_NO_WARNINGS;_CRT_SECURE_NO_WARNINGS"
-				MinimalRebuild="true"
+				MinimalRebuild="false"
+				ExceptionHandling="0"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
-				DebugInformationFormat="4"
+				DebugInformationFormat="3"
+				CompileAs="1"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -58,7 +57,7 @@
 			<Tool
 				Name="VCPreLinkEventTool"
 				Description="Removing alternate executables"
-				CommandLine="if exist &quot;$(TargetDir)sha256sum.exe&quot; del &quot;$(TargetDir)sha256sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)sha384sum.exe&quot; del &quot;$(TargetDir)sha384sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)sha512sum.exe&quot; del &quot;$(TargetDir)sha512sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)sha1sum.exe&quot; del &quot;$(TargetDir)sha1sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)md5sum.exe&quot; del &quot;$(TargetDir)md5sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)md4sum.exe&quot; del &quot;$(TargetDir)md4sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)md2sum.exe&quot; del &quot;$(TargetDir)md2sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)aes-gmacsum.exe&quot; del &quot;$(TargetDir)aes-gmacsum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)aes-cmacsum.exe&quot; del &quot;$(TargetDir)aes-cmacsum.exe&quot;"
+				CommandLine="if exist &quot;$(TargetDir)sha256sum.exe&quot; del &quot;$(TargetDir)sha256sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)sha384sum.exe&quot; del &quot;$(TargetDir)sha384sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)sha512sum.exe&quot; del &quot;$(TargetDir)sha512sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)sha1sum.exe&quot; del &quot;$(TargetDir)sha1sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)md5sum.exe&quot; del &quot;$(TargetDir)md5sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)md4sum.exe&quot; del &quot;$(TargetDir)md4sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)md2sum.exe&quot; del &quot;$(TargetDir)md2sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)aes-gmacsum.exe&quot; del &quot;$(TargetDir)aes-gmacsum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)aes-cmacsum.exe&quot; del &quot;$(TargetDir)aes-cmacsum.exe&quot;&#x0D;&#x0A;"
 			/>
 			<Tool
 				Name="VCLinkerTool"
@@ -110,9 +109,6 @@
 				Name="VCXMLDataGeneratorTool"
 			/>
 			<Tool
-				Name="VCWebServiceProxyGeneratorTool"
-			/>
-			<Tool
 				Name="VCMIDLTool"
 			/>
 			<Tool
@@ -120,11 +116,13 @@
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
 				PreprocessorDefinitions="_CRT_NONSTDC_NO_WARNINGS;_CRT_SECURE_NO_WARNINGS"
+				ExceptionHandling="0"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				DebugInformationFormat="3"
+				CompileAs="1"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -135,7 +133,7 @@
 			<Tool
 				Name="VCPreLinkEventTool"
 				Description="Removing alternate executables"
-				CommandLine="if exist &quot;$(TargetDir)sha256sum.exe&quot; del &quot;$(TargetDir)sha256sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)sha384sum.exe&quot; del &quot;$(TargetDir)sha384sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)sha512sum.exe&quot; del &quot;$(TargetDir)sha512sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)sha1sum.exe&quot; del &quot;$(TargetDir)sha1sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)md5sum.exe&quot; del &quot;$(TargetDir)md5sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)md4sum.exe&quot; del &quot;$(TargetDir)md4sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)md2sum.exe&quot; del &quot;$(TargetDir)md2sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)aes-gmacsum.exe&quot; del &quot;$(TargetDir)aes-gmacsum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)aes-cmacsum.exe&quot; del &quot;$(TargetDir)aes-cmacsum.exe&quot;"
+				CommandLine="if exist &quot;$(TargetDir)sha256sum.exe&quot; del &quot;$(TargetDir)sha256sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)sha384sum.exe&quot; del &quot;$(TargetDir)sha384sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)sha512sum.exe&quot; del &quot;$(TargetDir)sha512sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)sha1sum.exe&quot; del &quot;$(TargetDir)sha1sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)md5sum.exe&quot; del &quot;$(TargetDir)md5sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)md4sum.exe&quot; del &quot;$(TargetDir)md4sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)md2sum.exe&quot; del &quot;$(TargetDir)md2sum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)aes-gmacsum.exe&quot; del &quot;$(TargetDir)aes-gmacsum.exe&quot;&#x0D;&#x0A;if exist &quot;$(TargetDir)aes-cmacsum.exe&quot; del &quot;$(TargetDir)aes-cmacsum.exe&quot;&#x0D;&#x0A;"
 			/>
 			<Tool
 				Name="VCLinkerTool"
