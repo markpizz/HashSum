@@ -52,8 +52,9 @@
 #define FLG_WARN    8
 #define FLG_STRICT 16
 #define FLG_BINARY 32
-#define FLG_BSDTAG 64
-#define FLG_IGNORE 128
+#define FLG_TEXT   64
+#define FLG_BSDTAG 128
+#define FLG_IGNORE 256
 
 const char *
 GetErrorText(DWORD dwError)
@@ -355,6 +356,10 @@ CommandString, AlgorithmName, cbHash*8);
 "\n"
 "       -t, --text\n"
 "              read in text mode\n"
+"\n"
+"       --auto\n"
+"              determine text or binary on the fly.  Files with CRLF\n"
+"              line endings will be processed as text.\n"
 "\n");
 if (Algorithms)
     fprintf(stderr,
@@ -422,7 +427,8 @@ else
 "  -b, --binary    read in binary mode\n"
 "  -c, --check     read checksums from the FILEs and check them\n"
 "      --tag       create a BSD-style checksum\n"
-"  -t, --text      read in text mode\n");
+"  -t, --text      read in text mode\n"
+"      --auto      read in text mode for files with CRLF line endings\n");
 if (Algorithms)
     fprintf(stderr,
 "  -a:HASH         where HASH is one of these algorithms:\n"
@@ -644,7 +650,7 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
     {
     int status;
     FILE *f;
-    char *open_mode = (flags&FLG_BINARY) ? "rb" : "rt";
+    char *open_mode = (flags&FLG_TEXT) ? "rt" : "rb";
     char *hash = NULL;
     wchar_t AlgorithmNameW[32];
     char AlgorithmName[sizeof(AlgorithmNameW)];
@@ -800,6 +806,54 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
         }
     else
         {
+        if ((flags&(FLG_BINARY|FLG_TEXT)) == 0)
+            {                   /* No mode specified, auto detect text/binary files */
+            unsigned char FileBuf[32769];
+            size_t bytes, byte, lfcount = 0, crlfcount = 0;
+
+            fclose(f);
+            f = fopen(file, "rb");
+            if (NULL == f)
+                {
+                fprintf(stderr, "Error Opening '%s': %s\n", file, strerror(errno));
+                return EXIT_FAILURE;
+                }
+            FileBuf[sizeof(FileBuf)-1] = '\0';
+            bytes = fread(FileBuf, 1, sizeof(FileBuf) - 1, f);
+            for (byte=0; byte<bytes; byte++) 
+                {
+                switch (FileBuf[byte])
+                    {
+                    case '\n':
+                        ++lfcount;
+                        break;
+                    case '\r':
+                        if (FileBuf[byte+1] == '\n')
+                            ++crlfcount;
+                        break;
+                    default:
+                        if ((FileBuf[i] > 127) || (!isprint(FileBuf[i])))
+                            {
+                            flags |= FLG_BINARY;
+                            rewind(f);
+                            break;
+                            }
+                        break;
+                    }
+                }
+            if ((byte == bytes) &&      /* No binary data && */
+                (lfcount == crlfcount)) /* CRLF line endings */
+                {
+                fclose(f);
+                f = fopen(file, "rt");
+                if (NULL == f)
+                    {
+                    fprintf(stderr, "Error Opening '%s': %s\n", file, strerror(errno));
+                    return EXIT_FAILURE;
+                    }
+                flags |= FLG_TEXT;
+                }
+            }
         status = GetFileHash(hAlg, f, &hash);
         if (hash)
             {
@@ -920,6 +974,7 @@ void main(int                      argc,
             (!strcmp("--binary", argv[0])))
             {
             flags |= FLG_BINARY;
+            flags &= ~FLG_TEXT;
             continue;
             }
         if ((!strcmp("-c", argv[0])) || 
@@ -932,12 +987,19 @@ void main(int                      argc,
             {
             flags |= FLG_BSDTAG;
             flags |= FLG_BINARY;
+            flags &= ~FLG_TEXT;
             continue;
             }
         if ((!strcmp("-t", argv[0])) || 
             (!strcmp("--text", argv[0])))
             {
+            flags |= FLG_TEXT;
             flags &= ~FLG_BINARY;
+            continue;
+            }
+        if (!strcmp("--auto", argv[0]))
+            {
+            flags &= ~(FLG_BINARY|FLG_TEXT);
             continue;
             }
         if (!strcmp("--ignore-missing", argv[0]))

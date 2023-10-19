@@ -49,6 +49,10 @@ Vista onward.
        -t, --text
               read in text mode
 
+       --auto
+              determine text or binary on the fly.  Files with CRLF
+              line endings will be processed as text.
+
        -a:HASH
               where HASH is one of these algorithms:
                 SHA256,SHA384,SHA512,SHA1,MD5,MD4,MD2,AES-GMAC,AES-CMAC
@@ -119,6 +123,7 @@ With no FILE, or when FILE is -, read standard input.
   -c, --check     read checksums from the FILEs and check them
       --tag       create a BSD-style checksum
   -t, --text      read in text mode
+      --auto      read in text mode for files with CRLF line endings
   -a:HASH         where HASH is one of these algorithms:
                      SHA256,SHA384,SHA512,SHA1,MD5,MD4,MD2,AES-GMAC,AES-CMAC
 
