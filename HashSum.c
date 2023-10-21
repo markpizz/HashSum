@@ -50,11 +50,15 @@
 #define FLG_QUIET   2
 #define FLG_STATUS  4
 #define FLG_WARN    8
-#define FLG_STRICT 16
-#define FLG_BINARY 32
-#define FLG_TEXT   64
-#define FLG_BSDTAG 128
-#define FLG_IGNORE 256
+#define FLG_STRICT  16
+#define FLG_BINARY  32
+#define FLG_TEXT    64
+#define FLG_BSDTAG  128
+#define FLG_IGNORE  256
+#define FLG_ZERO    512
+#define FLG_RECURSE 1024
+
+#define MIN(a,b) ((a<b) ? (a) : (b))
 
 const char *
 GetErrorText(DWORD dwError)
@@ -252,6 +256,22 @@ OpenHashAlgorithmProvider(const char *Algorithm)
      default for reading standard input when standard input is a
      terminal.  This mode is never defaulted to if `--tag' is used.
 
+`--auto'
+     Dynamically determine if the input file(s) are text or binary 
+     on the fly.  Files with CRLF line endings are teated as text
+     and adjusted to LF line endings as they are processed.
+
+‘-z’
+‘--zero’
+     Output a zero byte (ASCII NUL) at the end of each line, rather than
+     a newline.  This option enables other programs to parse the output
+     even when that output might contain data with embedded newlines.
+
+'-r'
+‘--recurse
+     Scan for the specified file(s) in all subdirectories of the 
+     specified directory (or the current directory) to checksum.
+
 `-w'
 `--warn'
      When verifying checksums, warn about improperly formatted 
@@ -360,6 +380,12 @@ CommandString, AlgorithmName, cbHash*8);
 "       --auto\n"
 "              determine text or binary on the fly.  Files with CRLF\n"
 "              line endings will be processed as text.\n"
+"\n"
+"       -z, --zero\n"
+"             end each output line with NUL, not newline\n"
+"\n"
+"  -r, --recurse\n"
+"             checksum specified file(s) in all subdirectories\n"
 "\n");
 if (Algorithms)
     fprintf(stderr,
@@ -428,7 +454,9 @@ else
 "  -c, --check     read checksums from the FILEs and check them\n"
 "      --tag       create a BSD-style checksum\n"
 "  -t, --text      read in text mode\n"
-"      --auto      read in text mode for files with CRLF line endings\n");
+"      --auto      read in text mode for files with CRLF line endings\n"
+"  -z, --zero      end each output line with NUL, not newline\n"
+"  -r, --recurse   checksum specified file(s) in all subdirectories\n");
 if (Algorithms)
     fprintf(stderr,
 "  -a:HASH         where HASH is one of these algorithms:\n"
@@ -660,6 +688,104 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
 
     if (strcmp("-", file))
         {
+        int return_status = EXIT_SUCCESS;
+        char DirName[MAX_PATH + 1] = "";
+        char FileName[MAX_PATH + 1] = "";
+        char WildName[MAX_PATH + 1];
+        const char *backslash = strrchr (file, '\\');
+        const char *slash = strrchr (file, '/');
+        const char *pathsep = (backslash && slash) ? MIN (backslash, slash) : (backslash ? backslash : slash);
+        const char *c;
+
+        if (pathsep == NULL)                        /* Separator wasn't mentioned? */
+            pathsep = "\\";                         /* Default to Windows backslash */
+        c = strrchr(file, *pathsep);
+        if (c != NULL)
+            {   /* Separate Directory Path from FileName */
+            memcpy(DirName, file, 1 + c - file);
+            DirName[2 + c - file] = '0';
+            strncpy(FileName, c + 1, sizeof(FileName));
+            }
+        else
+            strncpy(FileName, file, sizeof(FileName));
+        if (*pathsep == '/')                        /* If slash separator? */
+            {
+            char *c;
+
+            while ((c = strchr (DirName, '\\')))
+                *c = '/';                           /* Convert backslash to slash */
+            }
+        if (islower (DirName[0]) && (DirName[1] == ':'))
+            DirName[0] = toupper (DirName[0]);
+        if (((c != NULL) && ((strchr(c + 1, '*') != NULL) || (strchr(c + 1, '?') != NULL))) ||
+            ((strchr(file, '*') != NULL) || (strchr(file, '?') != NULL)))
+            {
+            HANDLE hFind;
+            WIN32_FIND_DATAA File;
+
+            strcpy(WildName, FileName);
+            /* Handle Wildcards in file name */
+            if ((hFind = FindFirstFileA (file, &File)) != INVALID_HANDLE_VALUE) 
+                {
+                do 
+                    {
+                    if ((strcmp(File.cFileName, ".") == 0) ||
+                        (strcmp(File.cFileName, "..") == 0))
+                        continue;
+                    _snprintf(FileName, sizeof(FileName), "%s%s", DirName, File.cFileName);
+                    if (_stat64(FileName, &statb))
+                        {
+                        fprintf(stderr, "Can't stat '%s': %s\n", FileName, strerror(errno));
+                        return_status = EXIT_FAILURE;
+                        continue;
+                        }
+                    if (statb.st_mode&_S_IFDIR)
+                        {
+                        fprintf(stderr, "%s: %s: Is a directory\n", GetProgramBaseName(), FileName);
+                        continue;
+                        }
+                    status = ProcessFile(hAlg, FileName, flags & ~FLG_RECURSE);
+                    if (status)
+                        return_status = status;
+                    } while (FindNextFileA(hFind, &File));
+                FindClose(hFind);
+                }
+            if (flags&FLG_RECURSE)
+                {
+                char WildPath[MAX_PATH + 1];
+                char DirPath[MAX_PATH + 1];
+
+                _snprintf(WildPath, sizeof(WildPath), "%s*", DirName);
+                if ((hFind = FindFirstFileA (WildPath, &File)) != INVALID_HANDLE_VALUE) 
+                    {
+                    char DirFile[MAX_PATH + 1];
+
+                    do 
+                        {
+                        if ((strcmp(File.cFileName, ".") == 0) ||
+                            (strcmp(File.cFileName, "..") == 0))
+                            continue;
+                        _snprintf(DirFile, sizeof(DirFile), "%s%s", DirName, File.cFileName);
+                        if (_stat64(DirFile, &statb))
+                            {
+                            fprintf(stderr, "Can't stat '%s': %s\n", DirFile, strerror(errno));
+                            return_status = EXIT_FAILURE;
+                            continue;
+                            }
+                        if ((statb.st_mode&_S_IFDIR) == 0)
+                            continue;
+                        /* Look for the wildcard pattern in this subdirectory */
+                        _snprintf(DirPath, sizeof(DirPath), "%s%s%c%s", DirName, File.cFileName, *pathsep, WildName);
+                        status = ProcessFile(hAlg, DirPath, flags);
+                        if (status)
+                            return_status = status;
+                        } while (FindNextFileA(hFind, &File));
+                    FindClose(hFind);
+                    }
+                }
+            return return_status;   /* Done with this wildcard pattern in current directory */
+            }
+        _snprintf(DirName, sizeof(DirName), "%s%c", file, *pathsep);
         if (_stat64(file, &statb))
             {
             fprintf(stderr, "Can't stat '%s': %s\n", file, strerror(errno));
@@ -884,7 +1010,10 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
                         fprintf(stdout, "%c", (file[i] == '\\') ? '/' : file[i]);
                     }
                 }
-            fprintf(stdout, "\n");
+            if (flags&FLG_ZERO)
+                fputc('\0', stdout);
+            else
+                fprintf(stdout, "\n");
             free(hash);
             hash = NULL;
             }
@@ -981,6 +1110,7 @@ void main(int                      argc,
             (!strcmp("--check", argv[0])))
             {
             flags |= FLG_CHECK;
+            flags &= ~FLG_RECURSE;
             continue;
             }
         if (!strcmp("--tag", argv[0]))
@@ -1000,6 +1130,23 @@ void main(int                      argc,
         if (!strcmp("--auto", argv[0]))
             {
             flags &= ~(FLG_BINARY|FLG_TEXT);
+            continue;
+            }
+        if ((!strcmp("-z", argv[0])) || 
+            (!strcmp("--zero", argv[0])))
+            {
+            flags |= FLG_ZERO;
+            continue;
+            }
+        if ((!strcmp("-r", argv[0])) || 
+            (!strcmp("--recurse", argv[0])))
+            {
+            flags |= FLG_RECURSE;
+            if (flags&FLG_CHECK)
+                {
+                flags &= ~FLG_CHECK;
+                fprintf(stderr, "Can't 
+                }
             continue;
             }
         if (!strcmp("--ignore-missing", argv[0]))
