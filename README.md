@@ -53,6 +53,12 @@ Vista onward.
               determine text or binary on the fly.  Files with CRLF
               line endings will be processed as text.
 
+       -z, --zero
+              end each output line with NUL, not newline
+
+       -r, --recurse
+              checksum specified file(s) in all subdirectories
+
        -a:HASH
               where HASH is one of these algorithms:
                 SHA256,SHA384,SHA512,SHA1,MD5,MD4,MD2,AES-GMAC,AES-CMAC

@@ -44,7 +44,7 @@
 #define STATUS_SUCCESS ERROR_SUCCESS
 #endif
 
-#define VERSION "1.1"
+#define VERSION "2.0"
 
 #define FLG_CHECK   1
 #define FLG_QUIET   2
@@ -1142,11 +1142,7 @@ void main(int                      argc,
             (!strcmp("--recurse", argv[0])))
             {
             flags |= FLG_RECURSE;
-            if (flags&FLG_CHECK)
-                {
-                flags &= ~FLG_CHECK;
-                fprintf(stderr, "Can't 
-                }
+            flags &= ~FLG_CHECK;
             continue;
             }
         if (!strcmp("--ignore-missing", argv[0]))
