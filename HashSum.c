@@ -44,7 +44,7 @@
 #define STATUS_SUCCESS ERROR_SUCCESS
 #endif
 
-#define VERSION "2.0"
+#define VERSION "2.0RC2"
 
 #define FLG_CHECK   1
 #define FLG_QUIET   2
@@ -57,6 +57,7 @@
 #define FLG_IGNORE  256
 #define FLG_ZERO    512
 #define FLG_RECURSE 1024
+#define FLG_CMDARG  2048
 
 #define MIN(a,b) ((a<b) ? (a) : (b))
 
@@ -348,51 +349,55 @@ Usage (const char *AlgorithmName)
             Algorithms[strlen(Algorithms)-1] = '\0';
             }
         }
-    fprintf(stderr, "\n");
-    fprintf(stderr,
+    fprintf(stdout, "\n");
+    fprintf(stdout,
 "%s(1)                     User Commands                    %s(1)\n"
 "\n"
 "NAME\n"
 "       %s - compute and check %s message digests\n"
 "\n",
 GetProgramBaseName(), GetProgramBaseName(), CommandString, AlgorithmName);
-    fprintf(stderr,
+    fprintf(stdout,
 "SYNOPSIS\n"
 "       %s [OPTION]... [FILE]...\n"
 "\n"
 "DESCRIPTION\n"
 "       Print  or check %s (%u-bit) checksums.  With no FILE, or when FILE\n",
 CommandString, AlgorithmName, cbHash*8);
-    fprintf(stderr,
+    fprintf(stdout,
 "       is -, read standard input.\n"
 "\n"
 "       -b, --binary\n"
-"              read in binary mode\n"
+"             read in binary mode\n"
 "\n"
 "       -c, --check\n"
-"              read checksums from the FILEs and check them\n"
+"             read checksums from the FILEs and check them\n"
 "\n"
-"       --tag  create a BSD-style checksum\n"
+"       --tag create a BSD-style checksum\n"
 "\n"
 "       -t, --text\n"
-"              read in text mode\n"
+"             read in text mode\n"
 "\n"
 "       --auto\n"
-"              determine text or binary on the fly.  Files with CRLF\n"
-"              line endings will be processed as text.\n"
+"             determine text or binary on the fly when creating a\n"
+"             new checksum.  Files with CRLF line endings will be\n"
+"             processed as text.\n"
 "\n"
 "       -z, --zero\n"
-"             end each output line with NUL, not newline\n"
+"            end each output line with NUL, not newline\n"
 "\n"
 "  -r, --recurse\n"
-"             checksum specified file(s) in all subdirectories\n"
+"            output checksums for all specified file(s) in all\n"
+"            subdirectories.  This option is not meaningful when\n"
+"            checking existing checksums (--check), and thus is\n"
+"            ignored.\n"
 "\n");
 if (Algorithms)
-    fprintf(stderr,
+    fprintf(stdout,
 "       -a:HASH\n"
 "              where HASH is one of these algorithms:\n"
 "                %s\n", Algorithms);
-    fprintf(stderr,
+    fprintf(stdout,
 "\n"
 "   The following three options are useful only when verifying checksums:\n"
 "       --quiet\n"
@@ -437,17 +442,17 @@ if (Algorithms)
 "\n"
 "\n",
 GetProgramBaseName());
-    fprintf(stderr,
+    fprintf(stdout,
 "Usage: %s [OPTION]... [FILE]...\n",
 CommandString);
 if (cbHash)
-    fprintf(stderr,
+    fprintf(stdout,
 "Print or check %s (%u-bit) checksums.\n",
 AlgorithmName, cbHash*8);
 else
-    fprintf(stderr,
+    fprintf(stdout,
 "Print or check checksums.\n");
-    fprintf(stderr,
+    fprintf(stdout,
 "With no FILE, or when FILE is -, read standard input.\n"
 "\n"
 "  -b, --binary    read in binary mode\n"
@@ -458,10 +463,10 @@ else
 "  -z, --zero      end each output line with NUL, not newline\n"
 "  -r, --recurse   checksum specified file(s) in all subdirectories\n");
 if (Algorithms)
-    fprintf(stderr,
+    fprintf(stdout,
 "  -a:HASH         where HASH is one of these algorithms:\n"
 "                     %s\n", Algorithms);
-    fprintf(stderr,
+    fprintf(stdout,
 "\n"
 "The following five options are useful only when verifying checksums:\n"
 "      --ignore-missing  don't fail or report status for missing files\n"
@@ -610,6 +615,60 @@ Cleanup:
     }
 
 int
+ClassifyFileContents(FILE *f, const char **mode)
+    {
+    unsigned char FileBuf[65536 + 1];
+    size_t bytes, byte, lfcount = 0, crlfcount = 0;
+
+    *mode = "rb";
+    _setmode(fileno(f), _O_BINARY);
+    FileBuf[sizeof(FileBuf)-1] = '\0';
+    bytes = fread(FileBuf, 1, sizeof(FileBuf) - 1, f);
+    for (byte=0; byte<bytes; byte++) 
+        {
+        switch (FileBuf[byte])
+            {
+            case '\n':
+                ++lfcount;
+                break;
+            case '\r':
+                if (FileBuf[byte+1] == '\n')
+                    ++crlfcount;
+                break;
+            default:
+                if ((FileBuf[byte] > 127) || (!isprint(FileBuf[byte])))
+                    break;
+                break;
+            }
+        }
+    rewind(f);
+    if ((byte == bytes) &&      /* No binary data && */
+        (lfcount == crlfcount)) /* CRLF line endings */
+        {
+        _setmode(fileno(f), _O_TEXT);
+        *mode = "rt";
+        return 1;               /* return Text Mode */
+        }
+    return 0;                   /* Return Binary Mode */
+    }
+
+int
+GetFileTextOrBinaryMode(const char *file, const char **mode)
+    {
+    int return_status = -1;
+    FILE *f;
+
+    *mode = "rb";
+    f = fopen(file, *mode);
+    if (NULL != f)
+        {
+        return_status = ClassifyFileContents(f, mode);
+        fclose(f);
+        }
+    return return_status;
+    }
+
+int
 ParseSumLine(char *line, size_t size, char **hash, char **file, char **open_mode, char **algo)
     {
     char *c;
@@ -619,7 +678,7 @@ ParseSumLine(char *line, size_t size, char **hash, char **file, char **open_mode
     static const char HashChars[] = "0123456789abcdefABCDEF\r\n";
     size_t i;
 
-    if (lparen && rparen && (lparen < rparen))
+    if (lparen && rparen && (lparen < rparen))  /* BSD format line? */
         {
         /* Validate hash data as all hex */
         c = rparen + 4;
@@ -670,6 +729,8 @@ ParseSumLine(char *line, size_t size, char **hash, char **file, char **open_mode
     if ((file_len) && (c[file_len-1] == '\r'))
         c[--file_len] = '\0';
     *algo = NULL;
+    if (strcmp("rt", *open_mode) == 0)
+        GetFileTextOrBinaryMode(c, open_mode);
     return EXIT_SUCCESS;
     }
 
@@ -744,7 +805,7 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
                         fprintf(stderr, "%s: %s: Is a directory\n", GetProgramBaseName(), FileName);
                         continue;
                         }
-                    status = ProcessFile(hAlg, FileName, flags & ~FLG_RECURSE);
+                    status = ProcessFile(hAlg, FileName, flags & ~(FLG_RECURSE|FLG_CMDARG));
                     if (status)
                         return_status = status;
                     } while (FindNextFileA(hFind, &File));
@@ -776,7 +837,7 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
                             continue;
                         /* Look for the wildcard pattern in this subdirectory */
                         _snprintf(DirPath, sizeof(DirPath), "%s%s%c%s", DirName, File.cFileName, *pathsep, WildName);
-                        status = ProcessFile(hAlg, DirPath, flags);
+                        status = ProcessFile(hAlg, DirPath, flags & ~FLG_CMDARG);
                         if (status)
                             return_status = status;
                         } while (FindNextFileA(hFind, &File));
@@ -785,7 +846,6 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
                 }
             return return_status;   /* Done with this wildcard pattern in current directory */
             }
-        _snprintf(DirName, sizeof(DirName), "%s%c", file, *pathsep);
         if (_stat64(file, &statb))
             {
             fprintf(stderr, "Can't stat '%s': %s\n", file, strerror(errno));
@@ -793,8 +853,16 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
             }
         if (statb.st_mode&_S_IFDIR)
             {
-            fprintf(stderr, "%s: %s: Is a directory\n", GetProgramBaseName(), file);
-            return EXIT_FAILURE;
+            if (flags & FLG_CMDARG)
+                {
+                _snprintf(WildName, sizeof(WildName), "%s%s%c*", DirName, FileName, *pathsep);
+                return ProcessFile(hAlg, WildName, flags & ~FLG_CMDARG);
+                }
+            else
+                {
+                fprintf(stderr, "%s: %s: Is a directory\n", GetProgramBaseName(), file);
+                return EXIT_FAILURE;
+                }
             }
         }
     memset(AlgorithmNameW, 0, sizeof(AlgorithmNameW));
@@ -855,7 +923,7 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
                 {
                 ++bad_lines;
                 status = line_stat;
-                continue;
+                continue;               /* Next line */
                 }
             if (!strcmp("-", file))
                 {
@@ -871,10 +939,10 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
                 if (NULL == (check = fopen(file, open_mode)))
                     {
                     if ((flags&FLG_IGNORE) && (errno == ENOENT))
-                        continue;
+                        continue;       /* Next line */
                     ++open_or_io_errors;
                     fprintf(stderr, "%s: Error Opening '%s': %s\n", GetProgramBaseName(), file, strerror(errno));
-                    continue;
+                    continue;           /* Next line */
                     }
                 }
             if (algo && (strcmp(algo, AlgorithmName)))
@@ -885,37 +953,66 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
                     fprintf(stderr, "%s: Unknown Algorithm Type: %s, can't check %s\n", GetProgramBaseName(), algo, file);
                     fclose(check);
                     status = EXIT_FAILURE;
-                    continue;
+                    continue;           /* Next line */
                     }
                 }
             line_stat = GetFileHash((algo && (hCheckAlg != INVALID_HANDLE_VALUE)) ? hCheckAlg : hAlg, check, &file_hash);
-            if (check != stdin)
-                fclose(check);
-            if (hCheckAlg != INVALID_HANDLE_VALUE)
-                {
-                CloseHashAlgorithmProvider(hCheckAlg);
-                hCheckAlg = INVALID_HANDLE_VALUE;
-                }
+#define LINE_CLEANUP                                \
+    do                                              \
+        {                                           \
+        if (check != stdin)                         \
+            fclose(check);                          \
+        if (hCheckAlg != INVALID_HANDLE_VALUE)      \
+            {                                       \
+            CloseHashAlgorithmProvider(hCheckAlg);  \
+            hCheckAlg = INVALID_HANDLE_VALUE;       \
+            }                                       \
+        free(file_hash);                            \
+        } while (0)
             if (line_stat != EXIT_SUCCESS)
                 {
+                LINE_CLEANUP;
                 ++open_or_io_errors;
                 status = line_stat;
                 free(file_hash);
-                continue;
+                continue;               /* Next line */
                 }
             if (strcmp(file_hash, hash))
                 {
-                status = EXIT_FAILURE;
-                ++mis_matches;
-                if (!(flags&FLG_QUIET))
-                    fprintf(stdout, "%s: FAILED\n", file);
-                free(file_hash);
-                continue;
+                if (strchr(open_mode, 't') != NULL)
+                    {
+                    /* Text mode failed, try again in binary mode */
+                    open_mode = "rb";
+                    rewind(check);
+                    _setmode(fileno(check), _O_BINARY);
+                    free(file_hash);
+                    line_stat = GetFileHash((algo && (hCheckAlg != INVALID_HANDLE_VALUE)) ? hCheckAlg : hAlg, check, &file_hash);
+                    if (strcmp(file_hash, hash))
+                        {
+                        /* binary mode failure */
+                        status = EXIT_FAILURE;
+                        ++mis_matches;
+                        if (!(flags&FLG_QUIET))
+                            fprintf(stdout, "%s: FAILED\n", file);
+                        LINE_CLEANUP;
+                        continue;       /* Next line */
+                        }
+                    }
+                else
+                    {
+                    /* binary mode failure */
+                    status = EXIT_FAILURE;
+                    ++mis_matches;
+                    if (!(flags&FLG_QUIET))
+                        fprintf(stdout, "%s: FAILED\n", file);
+                    LINE_CLEANUP;
+                    continue;           /* Next line */
+                    }
                 }
+            LINE_CLEANUP;
             ++matches;
             if (!(flags&FLG_QUIET))
                 fprintf(stdout, "%s: OK\n", file);
-            free(file_hash);
             }
         if (!(flags&FLG_STATUS))
             {
@@ -934,9 +1031,6 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
         {
         if ((flags&(FLG_BINARY|FLG_TEXT)) == 0)
             {                   /* No mode specified, auto detect text/binary files */
-            unsigned char FileBuf[32769];
-            size_t bytes, byte, lfcount = 0, crlfcount = 0;
-
             fclose(f);
             f = fopen(file, "rb");
             if (NULL == f)
@@ -944,41 +1038,7 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
                 fprintf(stderr, "Error Opening '%s': %s\n", file, strerror(errno));
                 return EXIT_FAILURE;
                 }
-            FileBuf[sizeof(FileBuf)-1] = '\0';
-            bytes = fread(FileBuf, 1, sizeof(FileBuf) - 1, f);
-            for (byte=0; byte<bytes; byte++) 
-                {
-                switch (FileBuf[byte])
-                    {
-                    case '\n':
-                        ++lfcount;
-                        break;
-                    case '\r':
-                        if (FileBuf[byte+1] == '\n')
-                            ++crlfcount;
-                        break;
-                    default:
-                        if ((FileBuf[i] > 127) || (!isprint(FileBuf[i])))
-                            {
-                            flags |= FLG_BINARY;
-                            rewind(f);
-                            break;
-                            }
-                        break;
-                    }
-                }
-            if ((byte == bytes) &&      /* No binary data && */
-                (lfcount == crlfcount)) /* CRLF line endings */
-                {
-                fclose(f);
-                f = fopen(file, "rt");
-                if (NULL == f)
-                    {
-                    fprintf(stderr, "Error Opening '%s': %s\n", file, strerror(errno));
-                    return EXIT_FAILURE;
-                    }
-                flags |= FLG_TEXT;
-                }
+            ClassifyFileContents(f, &open_mode);
             }
         status = GetFileHash(hAlg, f, &hash);
         if (hash)
@@ -999,7 +1059,7 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
                 }
             else
                 {
-                fprintf(stdout, "%s %s", hash, (flags&FLG_BINARY) ? "*" : " ");
+                fprintf(stdout, "%s %s", hash, (strchr(open_mode, 't') == NULL) ? "*" : " ");
                 if (f == stdin)
                     fprintf(stdout, "-");
                 else
@@ -1171,7 +1231,8 @@ void main(int                      argc,
             flags |= FLG_STRICT;
             continue;
             }
-        if (!strcmp("--help", argv[0]))
+        if ((!strcmp("--help", argv[0])) ||
+            (!strcmp("/?", argv[0])))
             Usage(algorithm);
         if (!strcmp("--version", argv[0]))
             {
@@ -1194,7 +1255,7 @@ void main(int                      argc,
                 break;
                 }
             }
-        status = ProcessFile(hAlg, argv[0], flags);
+        status = ProcessFile(hAlg, argv[0], flags | FLG_CMDARG);
         if (status)
             exit_status = status;
         ++files_processed;
@@ -1208,7 +1269,7 @@ void main(int                      argc,
                 exit_status = EXIT_FAILURE;
             }
         if (exit_status == EXIT_SUCCESS)
-            exit_status = ProcessFile(hAlg, "-", flags);
+            exit_status = ProcessFile(hAlg, "-", flags | FLG_CMDARG);
         }
     CloseHashAlgorithmProvider(hAlg);
     free((void*)algorithm);

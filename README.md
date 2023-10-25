@@ -50,14 +50,18 @@ Vista onward.
               read in text mode
 
        --auto
-              determine text or binary on the fly.  Files with CRLF
-              line endings will be processed as text.
+              determine text or binary on the fly when creating a 
+              new checksum.  Files with CRLF line endings will be 
+              processed as text.
 
        -z, --zero
-              end each output line with NUL, not newline
+               end each output line with NUL, not newline
 
        -r, --recurse
-              checksum specified file(s) in all subdirectories
+               output checksums for all specified file(s) in all 
+               subdirectories.  This option is not meaningful when 
+               checking existing checksums (--check), and thus is 
+               ignored.
 
        -a:HASH
               where HASH is one of these algorithms:
