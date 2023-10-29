@@ -1,6 +1,6 @@
 /* Compute and validate checksums of files.
  *
- * Copyright (C) 2017 Mark Pizzolato.
+ * Copyright (C) 2017-2023 Mark Pizzolato.
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -46,18 +46,18 @@
 
 #define VERSION "2.0RC2"
 
-#define FLG_CHECK   1
-#define FLG_QUIET   2
-#define FLG_STATUS  4
-#define FLG_WARN    8
-#define FLG_STRICT  16
-#define FLG_BINARY  32
-#define FLG_TEXT    64
-#define FLG_BSDTAG  128
-#define FLG_IGNORE  256
-#define FLG_ZERO    512
-#define FLG_RECURSE 1024
-#define FLG_CMDARG  2048
+#define FLG_CHECK   0X0001
+#define FLG_QUIET   0X0002
+#define FLG_STATUS  0X0004
+#define FLG_WARN    0X0008
+#define FLG_STRICT  0X0010
+#define FLG_BINARY  0X0020
+#define FLG_TEXT    0X0040
+#define FLG_BSDTAG  0X0080
+#define FLG_IGNORE  0X0100
+#define FLG_ZERO    0X0200
+#define FLG_RECURSE 0X0400
+#define FLG_CMDARG  0X0800
 
 #define MIN(a,b) ((a<b) ? (a) : (b))
 
@@ -400,6 +400,9 @@ if (Algorithms)
     fprintf(stdout,
 "\n"
 "   The following three options are useful only when verifying checksums:\n"
+"       --ignore-missing\n"
+"              don't fail or report status for missing files\n"
+"\n"
 "       --quiet\n"
 "              don't print OK for each successfully verified file\n"
 "\n"
@@ -437,7 +440,7 @@ if (Algorithms)
 "       Report %s bugs to mark@infocomm.com\n"
 "\n"
 "COPYRIGHT\n"
-"       Copyright (c) 2017 Mark Pizzolato.  All Rights Reserved.\n"
+"       Copyright (c) 2017-2023 Mark Pizzolato.  All Rights Reserved.\n"
 "       There is NO WARRANTY, to the extent permitted by law.\n"
 "\n"
 "\n",
@@ -739,7 +742,7 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
     {
     int status;
     FILE *f;
-    char *open_mode = (flags&FLG_TEXT) ? "rt" : "rb";
+    char *open_mode = (flags & FLG_TEXT) ? "rt" : "rb";
     char *hash = NULL;
     wchar_t AlgorithmNameW[32];
     char AlgorithmName[sizeof(AlgorithmNameW)];
@@ -802,16 +805,17 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
                         }
                     if (statb.st_mode&_S_IFDIR)
                         {
-                        fprintf(stderr, "%s: %s: Is a directory\n", GetProgramBaseName(), FileName);
+                        if ((flags & FLG_RECURSE) == 0)
+                            fprintf(stderr, "%s: %s: Is a directory\n", GetProgramBaseName(), FileName);
                         continue;
                         }
-                    status = ProcessFile(hAlg, FileName, flags & ~(FLG_RECURSE|FLG_CMDARG));
+                    status = ProcessFile(hAlg, FileName, flags & ~(FLG_RECURSE | FLG_CMDARG));
                     if (status)
                         return_status = status;
                     } while (FindNextFileA(hFind, &File));
                 FindClose(hFind);
                 }
-            if (flags&FLG_RECURSE)
+            if (flags & FLG_RECURSE)
                 {
                 char WildPath[MAX_PATH + 1];
                 char DirPath[MAX_PATH + 1];
@@ -860,8 +864,11 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
                 }
             else
                 {
-                fprintf(stderr, "%s: %s: Is a directory\n", GetProgramBaseName(), file);
-                return EXIT_FAILURE;
+                if (flags & FLG_RECURSE)
+                    {
+                    fprintf(stderr, "%s: %s: Is a directory\n", GetProgramBaseName(), file);
+                    return EXIT_FAILURE;
+                    }
                 }
             }
         }
@@ -884,8 +891,8 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
             flags &= ~FLG_BINARY;
         else
             flags |= FLG_BINARY;
-        fprintf(stderr, "%s mode _setmode for stdin\n", (flags&FLG_BINARY) ? "Binary" : "Text");
-        _setmode(fileno(stdin), (flags&FLG_BINARY) ? _O_BINARY : _O_TEXT);
+        fprintf(stderr, "%s mode _setmode for stdin\n", (flags & FLG_BINARY) ? "Binary" : "Text");
+        _setmode(fileno(stdin), (flags & FLG_BINARY) ? _O_BINARY : _O_TEXT);
         f = stdin;
         }
     else
@@ -895,7 +902,7 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
         fprintf(stderr, "Error Opening '%s': %s\n", file, strerror(errno));
         return EXIT_FAILURE;
         }
-    if (flags&FLG_CHECK)
+    if (flags & FLG_CHECK)
         {
         char *line_buf = NULL;
         size_t line_buf_size = 0;
@@ -906,6 +913,19 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
         int bad_lines = 0;
         int open_or_io_errors = 0;
         BCRYPT_ALG_HANDLE hCheckAlg = INVALID_HANDLE_VALUE;
+
+#define LINE_CLEANUP                                \
+    do                                              \
+        {                                           \
+        if (check != stdin)                         \
+            fclose(check);                          \
+        if (hCheckAlg != INVALID_HANDLE_VALUE)      \
+            {                                       \
+            CloseHashAlgorithmProvider(hCheckAlg);  \
+            hCheckAlg = INVALID_HANDLE_VALUE;       \
+            }                                       \
+        free(file_hash);                            \
+        } while (0)
 
         while (0 < (line_size = GetLine(&line_buf, &line_buf_size, f)))
             {
@@ -938,7 +958,7 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
                 {
                 if (NULL == (check = fopen(file, open_mode)))
                     {
-                    if ((flags&FLG_IGNORE) && (errno == ENOENT))
+                    if ((flags & FLG_IGNORE) && (errno == ENOENT))
                         continue;       /* Next line */
                     ++open_or_io_errors;
                     fprintf(stderr, "%s: Error Opening '%s': %s\n", GetProgramBaseName(), file, strerror(errno));
@@ -957,18 +977,6 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
                     }
                 }
             line_stat = GetFileHash((algo && (hCheckAlg != INVALID_HANDLE_VALUE)) ? hCheckAlg : hAlg, check, &file_hash);
-#define LINE_CLEANUP                                \
-    do                                              \
-        {                                           \
-        if (check != stdin)                         \
-            fclose(check);                          \
-        if (hCheckAlg != INVALID_HANDLE_VALUE)      \
-            {                                       \
-            CloseHashAlgorithmProvider(hCheckAlg);  \
-            hCheckAlg = INVALID_HANDLE_VALUE;       \
-            }                                       \
-        free(file_hash);                            \
-        } while (0)
             if (line_stat != EXIT_SUCCESS)
                 {
                 LINE_CLEANUP;
@@ -992,7 +1000,7 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
                         /* binary mode failure */
                         status = EXIT_FAILURE;
                         ++mis_matches;
-                        if (!(flags&FLG_QUIET))
+                        if (!(flags & FLG_QUIET))
                             fprintf(stdout, "%s: FAILED\n", file);
                         LINE_CLEANUP;
                         continue;       /* Next line */
@@ -1003,7 +1011,7 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
                     /* binary mode failure */
                     status = EXIT_FAILURE;
                     ++mis_matches;
-                    if (!(flags&FLG_QUIET))
+                    if (!(flags & FLG_QUIET))
                         fprintf(stdout, "%s: FAILED\n", file);
                     LINE_CLEANUP;
                     continue;           /* Next line */
@@ -1011,10 +1019,10 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
                 }
             LINE_CLEANUP;
             ++matches;
-            if (!(flags&FLG_QUIET))
+            if (!(flags & FLG_QUIET))
                 fprintf(stdout, "%s: OK\n", file);
             }
-        if (!(flags&FLG_STATUS))
+        if (!(flags & FLG_STATUS))
             {
             if (bad_lines)
                 fprintf(stderr, "%s: WARNING: %d line%s improperly formatted\n", GetProgramBaseName(), bad_lines, (bad_lines == 1) ? " is" : "s are");
@@ -1029,7 +1037,7 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
         }
     else
         {
-        if ((flags&(FLG_BINARY|FLG_TEXT)) == 0)
+        if ((flags & (FLG_BINARY | FLG_TEXT)) == 0)
             {                   /* No mode specified, auto detect text/binary files */
             fclose(f);
             f = fopen(file, "rb");
@@ -1043,7 +1051,7 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
         status = GetFileHash(hAlg, f, &hash);
         if (hash)
             {
-            if (flags&FLG_BSDTAG)
+            if (flags & FLG_BSDTAG)
                 {
                 fprintf(stdout, "%s (", AlgorithmName);
                 if (f == stdin)
@@ -1070,7 +1078,7 @@ ProcessFile(BCRYPT_ALG_HANDLE hAlg, const char *file, int flags)
                         fprintf(stdout, "%c", (file[i] == '\\') ? '/' : file[i]);
                     }
                 }
-            if (flags&FLG_ZERO)
+            if (flags & FLG_ZERO)
                 fputc('\0', stdout);
             else
                 fprintf(stdout, "\n");

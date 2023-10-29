@@ -68,6 +68,9 @@ Vista onward.
                 SHA256,SHA384,SHA512,SHA1,MD5,MD4,MD2,AES-GMAC,AES-CMAC
 
    The following three options are useful only when verifying checksums:
+       --ignore-missing
+              don't fail or report status for missing files
+
        --quiet
               don't print OK for each successfully verified file
 
@@ -109,7 +112,7 @@ Vista onward.
 ```
 # COPYRIGHT
 ```
-       Copyright (c) 2017 Mark Pizzolato.  All Rights Reserved.
+       Copyright (c) 2017-2023 Mark Pizzolato.  All Rights Reserved.
        There is NO WARRANTY, to the extent permitted by law.
 
 ```
