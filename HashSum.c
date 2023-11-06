@@ -44,7 +44,7 @@
 #define STATUS_SUCCESS ERROR_SUCCESS
 #endif
 
-#define VERSION "2.0RC2"
+#define VERSION "2.0"
 
 #define FLG_CHECK   0X0001
 #define FLG_QUIET   0X0002
